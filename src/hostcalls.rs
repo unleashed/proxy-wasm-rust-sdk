@@ -58,6 +58,34 @@ pub fn set_tick_period(period: Duration) -> Result<(), Status> {
 }
 
 extern "C" {
+    fn proxy_get_configuration(
+        return_buffer_data: *mut *mut u8,
+        return_buffer_size: *mut usize,
+    ) -> Status;
+}
+
+pub fn get_configuration() -> Result<Option<Bytes>, Status> {
+    let mut return_data: *mut u8 = null_mut();
+    let mut return_size: usize = 0;
+    unsafe {
+        match proxy_get_configuration(&mut return_data, &mut return_size) {
+            Status::Ok => {
+                if !return_data.is_null() {
+                    Ok(Some(Vec::from_raw_parts(
+                        return_data,
+                        return_size,
+                        return_size,
+                    )))
+                } else {
+                    Ok(None)
+                }
+            }
+            status => panic!("unexpected status: {}", status as u32),
+        }
+    }
+}
+
+extern "C" {
     fn proxy_get_buffer_bytes(
         buffer_type: BufferType,
         start: usize,
@@ -500,12 +528,12 @@ pub fn enqueue_shared_queue(queue_id: u32, value: Option<&[u8]>) -> Result<(), S
 }
 
 extern "C" {
-    fn proxy_continue_stream(stream_type: StreamType) -> Status;
+    fn proxy_continue_request() -> Status;
 }
 
-pub fn continue_stream(stream_type: StreamType) -> Result<(), Status> {
+pub fn resume_http_request() -> Result<(), Status> {
     unsafe {
-        match proxy_continue_stream(stream_type) {
+        match proxy_continue_request() {
             Status::Ok => Ok(()),
             status => panic!("unexpected status: {}", status as u32),
         }
@@ -513,12 +541,12 @@ pub fn continue_stream(stream_type: StreamType) -> Result<(), Status> {
 }
 
 extern "C" {
-    fn proxy_close_stream(stream_type: StreamType) -> Status;
+    fn proxy_continue_response() -> Status;
 }
 
-pub fn close_stream(stream_type: StreamType) -> Result<(), Status> {
+pub fn resume_http_response() -> Result<(), Status> {
     unsafe {
-        match proxy_close_stream(stream_type) {
+        match proxy_continue_response() {
             Status::Ok => Ok(()),
             status => panic!("unexpected status: {}", status as u32),
         }
@@ -555,6 +583,19 @@ pub fn send_http_response(
             serialized_headers.len(),
             -1,
         ) {
+            Status::Ok => Ok(()),
+            status => panic!("unexpected status: {}", status as u32),
+        }
+    }
+}
+
+extern "C" {
+    fn proxy_clear_route_cache() -> Status;
+}
+
+pub fn clear_http_route_cache() -> Result<(), Status> {
+    unsafe {
+        match proxy_clear_route_cache() {
             Status::Ok => Ok(()),
             status => panic!("unexpected status: {}", status as u32),
         }
